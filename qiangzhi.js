@@ -402,3 +402,108 @@ if (!!a && (!!b || !!c)) {
     console.log( "yep" );
 }
 */
+//ES6 允许 从符号到字符串的显式强制类型转换，然而隐式强制类型转换会产生错误
+/*
+var s1 =Symbol("cool");
+String(s1);//"Symbol(cool)"
+
+var s2 = Symbol("not cool");
+s2+"";// // TypeError
+
+//宽松相等和严格相等
+//== 允许在相等比较中进行强制类型转换，而 === 不允许。”
+
+var a = 42;
+var b = "42";
+a===b;// false
+a == b;// true
+
+var x = true;
+var y = "42";
+x == y;//false
+//Type(x)是布尔值，所以ToNumber(x)将true强制类型转换为1，变成1 == "42"，二者的类型仍然不同，"42" 根据规则被强制类型转换为 42，最后变成 1 == 42，结果为 false
+*/
+/*
+var a = "42";
+//// 不要这样用，条件判断不成立:
+if(a == true){}
+//// 也不要这样用，条件判断不成立:
+if(a === true){}
+//// 这样的显式用法没问题:
+if(a){}
+//// 这样的显式用法更好:
+if(!!a){}
+// 这样的显式用法也很好:
+if(Boolean(a)){}
+*/
+//(1) 如果 x 为 null，y 为 undefined，则结果为 true。
+//2) 如果 x 为 undefined，y 为 null，则结果为 true。
+
+var a =null;
+var b;
+
+a==b;//true
+a==null;//true
+b==null;//true
+
+a == false;// false
+b == false;// false
+b == "";// false
+a == "";// false
+a == 0;// false
+b == 0;// false
+
+var a = doSomething();
+if(a == null){}
+//条件判断a == null仅在doSomething()返回非null和undefined时才成立
+var a = doSomething();
+     if (a === undefined || a === null) {}
+  
+//关于对象(对象 / 函数 / 数组)和标量基本类型(字符串 / 数字 / 布尔值)之间的相等比 较     
+
+//如果 Type(x) 是字符串或数字，Type(y) 是对象，则返回 x == ToPrimitive(y) 的结果;
+
+//如果 Type(x) 是对象，Type(y) 是字符串或数字，则返回 ToPromitive(x) == y 的结果。
+var a =42;
+var b =[42];
+a == b;
+//[ 42 ] 首先调用 ToPromitive 抽象操作，返回 "42"，变成 "42" == 42,又变成 42 == 42，最后二者相等\
+
+var a = "abc";
+var b = Object(a);
+
+a===b;//false
+a==b;//true
+
+var a = null;
+var b = Object(a);
+a == b;//false
+
+var c = undefined;
+var d = Object(c);
+c == d;
+
+var e =NaN;
+var f = Object(e);
+e == f;
+//因为没有对应的封装对象，所以 null 和 undefined 不能够被封装(boxed)，Object(null) 和 Object() 均返回一个常规对象
+//NaN能够被封装为数字封装对象，但拆封之后NaN == NaN返回false，因为NaN不等于NaN
+
+//比较少见的情况
+//1. 返回其他数字
+Number.prototype.valueOf = function(){
+    return 3;
+};
+
+new Number(2)==3;//true
+//Number(2) 涉及 ToPrimitive 强制类型 转换，因此会调用 valueOf()
+
+var i = 2;
+Number.prototype.valueOf = function(){
+    return i++;
+};
+var a = new Number(42);
+if(a == 2 && a == 3){
+    console.log("yep,this happened.")
+}//yep,this happened.
+//如果让 a.valueOf() 每次调用都产生副作用，比如第一次返回 2，第二次返回 3，就会出现这样的情况。
