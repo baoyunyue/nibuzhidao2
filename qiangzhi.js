@@ -507,3 +507,83 @@ if(a == 2 && a == 3){
     console.log("yep,this happened.")
 }//yep,this happened.
 //如果让 a.valueOf() 每次调用都产生副作用，比如第一次返回 2，第二次返回 3，就会出现这样的情况。
+
+//假值的相等比较
+"0" == null;//false
+"0" == undefined;//false
+"0" == false;//true
+"0" == NaN;//false
+"0" == 0;//true
+"0" == "";//false
+//我们都知道 "" 和 NaN 不相等，"0" 和 0 相等
+false == null;//false
+false == undefined;//false
+false == NaN;//false
+false == 0;//true
+false == "";//true
+false == [];//true
+false == {};//false
+
+"" == null;//false
+"" == undefined;//false
+"" == NaN;//false
+"" == 0;//true
+"" == [];//true
+"" == {};//false
+
+0 == null;//false
+0 == undefined;//false
+0 == NaN;//false
+0 ==[];//true
+0 == {};//false
+//因为它们属于假阳(false positive)的情况，里面坑很多。 "" 和 0 明显是两个不同的值，它们之间的强制类型转换很容易搞错
+[] == ![]//true
+//根据 ToBoolean 规则，它会进行布尔 值的显式强制类型转换(同时反转奇偶校验位)。所以[] == ![]变成了[] == false。前 面我们讲过 false == []
+
+2 == [2];//true
+"" == [null];//true
+//== 右边的值 [2] 和 [null] 会进行 ToPrimitive 强制类型转换， 以便能够和左边的基本类型值(2 和 "")进行比较。因为数组的 valueOf() 返回数组本身， 所以强制类型转换过程中数组会进行字符串化
+//第一行中的 [2] 会转换为 "2"，然后通过 ToNumber 转换为 2。第二行中的 [null] 会直接转 换为 ""
+
+0 == "\n";//true
+//""、"\n"(或者 " " 等其他空格组合)等空字符串被 ToNumber 强制类型转换为 0。
+
+"true" == true;//false
+"foo" == ["foo"];//true
+
+//如果两边的值中有 true 或者 false，千万不要使用 ==。
+// 如果两边的值中有 []、"" 或者 0，尽量不要使用 ==。
+
+//有一种情况下强制类型转换是绝对安全的，那就是 typeof 操作。typeof 总是 返回七个字符串之一，其中没有空字符串。所以在类型检查 过程中不会发生隐式强制类型转换。typeof x == "function"是100%安全 的，和typeof x === "function"一样
+
+
+//比较双方首先调用 ToPrimitive，如果结果出现非字符串，就根据 ToNumber 规则将双方强 制类型转换为数字来进行比较。
+var a =[42];
+var b =["43"];
+a<b;//true
+b<a;//false
+
+var a = ["42"];
+var b =["043"];
+a<b;//false
+//a 和 b 并没有被转换为数字，因为 ToPrimitive 返回的是字符串，所以这里比较的是 "42" 和 "043" 两个字符串，它们分别以 "4" 和 "0" 开头。因为 "0" 在字母顺序上小于 "4"，所以 最后结果为 false。
+
+var a = [4,2];
+var b = [0,4,3];
+a<b;//false
+//a 转换为 "4, 2"，b 转换为 "0, 4, 3"，同样是按字母顺序进行比较。
+
+var a = {b:42};
+var b = {b:43};
+a<b;//false
+//结果还是false，因为a是[object Object]，b也是[object Object]，所以按照字母顺序a < b 并不成立
+
+var a = { b:42};
+var b = {b:43};
+a<b;//false
+a == b; // false
+a > b;  // false
+a <= b; // true
+a >= b; // true
+//因为根据规范a <= b被处理为b < a，然后将结果反转。因为b < a的结果是false，所以 a <= b 的结果是 true
+//这可能与我们设想的大相径庭，即 <= 应该是“小于或者等于”。实际上 JavaScript 中 <= 是“不大于”的意思(即 !(a > b)，处理为 !(b < a))。同理 a >= b 处理为 b <= a
