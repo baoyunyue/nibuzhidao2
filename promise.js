@@ -540,3 +540,216 @@ Promise.race([p1,p2])
      ),
      timeoutPromise(3000)// 给它3秒钟
  ])
+ // polyfill安全的guard检查
+ if(!Promise.first){
+     Promise.first = function(prs){
+         return new Promise(function(resolve,reject){
+             // 在所有promise上循环
+             prs.forEach(function(pr){
+                 // 把值规整化
+                 Promise.resolve(pr)
+                 // 不管哪个最先完成，就决议主promise
+                 .then(resolve);
+             });
+         });
+     };
+ }
+
+ if(!Promise.map){
+     Promise.map = function(vals,cb){
+         // 一个等待所有map的promise的新promise
+         return Promise.all(
+             // 注:一般数组map(..)把值数组转换为 promise数组
+             vals.map(function(val){
+                 // 用val异步map之后决议的新promise替换val
+                 return new Promise(function(resolve){
+                     cb(val,resolve);
+                 });
+             })
+         );
+     };
+ }
+ //在这个 map(..) 实现中，不能发送异步拒绝信号，但如果在映射的回调 (cb(..))内出现同步的异常或错误，主 Promise.map(..) 返回的 promise就会拒绝
+
+ var p1 =Promise.resolve(21);
+ var p2 = Promise.resolve(42);
+ var p3 = Promise.reject("Oops");
+ // 把列表中的值加倍，即使是在Promise中
+ Promise.map([p1,p2,p3],function(pr,done){
+     // 保证这一条本身是一个Promise
+     Promise.resolve(pr)
+     .then(
+         // 提取值作为v
+         function(v){
+             // map完成的v到新值
+             done(v*2);
+         },
+         // 或者map到promise拒绝消息
+         done
+     );
+ })
+ .then(function(vals){
+     console.log(vals);//[42,84,"Oops"]
+ });
+
+
+//p.catch( rejected ); // 或者p.then( null, rejected )
+//then(..) 和 catch(..) 也会创建并返回一个新的 promise，这个 promise 可以用于实现 Promise 链式流程控制。如果完成或拒绝回调中抛出异常，返回的 promise 是被拒绝的。如 果任意一个回调返回非 Promise、非 thenable 的立即值，这个值会被用作返回 promise 的完 成值。如果完成处理函数返回一个 promise 或 thenable，那么这个值会被展开，并作为返回 promise 的决议值。
+//若向Promise.all([ .. ])传入空数组，它会立即完成，但Promise. race([ .. ]) 会挂住
+
+function getY(x){
+    return new Promise(function(resolve,reject){
+        setTimeout(function(){
+            resolve((3*x)-1);
+        },100);
+    });
+}
+function foo(bar,baz){
+    var x = bar*baz;
+    return getY(x)
+    .then(function(y){
+        return[x,y];
+    });
+}
+
+foo(10,20)
+.then(function(msg){
+    var x =msgs[0];
+    var y = msgs[1];
+
+    console.log(x,y);
+});
+
+function foo(bar,baz){
+    var x =bar*baz;
+    return[
+        Promise.resolve(x),
+        getY(x)
+    ];
+}
+Promise.all(
+    foo(10,20)
+)
+.then(function(msg){
+    var x = msgs[0];
+    var y = msgs[1];
+    console.log(x,y);
+});
+
+function spread(fn){
+    return Function.apply.bind(fn,null);
+}
+Promise.all(
+    foo(10,20)
+)
+.then(
+    spread(function(x,y){
+        console.log(x,y);//200 599
+    })
+)
+//解构
+Promise.all(
+    foo(10,20)
+)
+.then(function(msgs){
+    var[x,y]=msgs;
+    console.log(x,y);
+}
+);
+
+Promise.all(
+    foo(10,20)
+)
+.then(function([x,y]){
+    console.log(x,y);//200 599
+});
+
+// click(..)把"click"事件绑定到一个DOM元素 
+// request(..)是前面定义的支持Promise的Ajax
+var p = new Promise(function(resolve,reject){
+    click("#mybtn",resolve);
+});
+p.then(function(evt){
+    var btnID = evt.currentTarget.id;
+    return request("http://some.url.1/?id="+btnID);
+})
+.then(function(text){
+    console.log(text);
+});
+//如果这个按钮被 点击了第二次的话，promise p 已经决议，因此第二个 resolve(..) 调用就会被忽略
+//为每个事件的发生创建一整个新的 Promise 链
+click("#mybtn",function(evt){
+    var btnID = evt.currentTarget.id;
+    request("http://some.url.1/?id=" + btnID )
+    .then(function(text){
+        console.log(text);
+    })
+})
+//针对这个按钮上的每个 "click" 事件都会启动一整个新的 Promise
+function foo(x,y,cb){
+    ajax(
+        "http://some.url.1/?x=" + x + "&y=" + y,
+        cb
+    );
+}
+foo(11,31,function(err,text){
+    if(err){
+        console.error( err );
+    }
+    else {
+        console.log( text );
+}
+});
+
+
+// polyfill安全的guard检查
+if(!Promise.wrap){
+    Promise.wrap = function(fn){
+        return function(){
+            var args=[].slice.call(arguments);
+            return new Promise(function(resolve,reject){
+                fn.apply(
+                    null,
+                    args.concat(function(err,v){
+                        if(err){
+                            reject(err);
+                        }
+                        else{
+                            resolve(v);
+                        }
+                    })
+                );
+            });
+        };
+    };
+}
+//它接受一个函数，这个函数需要一个 error-first 风格的回调作为第一个 参数，并返回一个新的函数。返回的函数自动创建一个 Promise 并返回，并替换回调，连 接到 Promise 完成或拒绝
+var request = Promise.wrap(ajax);
+request("http://some.url.1/")
+.then(/* */)
+//Promise.wrap(..) 并不产出 Promise。它产出的是一个将产生 Promise 的函数。
+
+// 为ajax(..)构造一个promisory
+var request = Promise.wrap(ajax);
+function foo(x,y,cb){
+    request(
+        "http://some.url.1/?x=" + x + "&y=" + y 
+    )
+    .then(
+        function fulfilled(text){
+            cb(null,text);
+        },
+        cb
+    );
+}
+
+var betterFoo = Promise.wrap(foo);
+betterFoo(11,31)
+.then(
+    function fulfilled(text){
+        console.log(text);
+    },
+    function rejected(err){
+        console.log(err);
+    }
+);
