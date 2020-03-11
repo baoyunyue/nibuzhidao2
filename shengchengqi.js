@@ -159,6 +159,7 @@ s2();       // b = a * 2;
 
 */
 
+/*
 var gimmeSomething =(function(){
     var nextVal;
     return function(){
@@ -443,3 +444,461 @@ async function main() {
 main();
 //main() 也不再被声明为生成器函数了，它现在是 一类新的函数:async 函数。最后，我们不再 yield 出 Promise，而是用 await 等待它决议
 //如果你 await 了一个 Promise，async 函数就会自动获知要做什么，它会暂停这个函数(就 像生成器一样)，直到 Promise 决议。我们并没有在这段代码中展示这一点，但是调用一个 像 main() 这样的 async 函数会自动返回一个 promise。在函数完全结束之后，这个 promise 会决议。
+
+function *foo(){
+    var p1 = request("http://some.url.1");
+    var p2 = request("http://some.url.2");
+    var r1 = yield p1;
+    var r2 = yield p2;
+    var r3 = yield request(
+        "http://some.url.3/?v=" + r1 + "," + r2
+    );
+    console.log(r3);
+}
+run(foo);
+//p1 和 p2 是并发执行(即并行”)的用于 Ajax 请求的 promise。哪一个先完成都无所谓，因为 promise 会按照需要 在决议状态保持任意长时间。
+
+function *foo(){
+    var request = yield Promise.all([
+        request("http://some.url.1"),
+        request("http://some.url.2")
+    ]);
+    var r1 = request[0];
+    var r2 = request[1];
+    var r3 = yield request(
+        "http://some.url.3/?v=" + r1 + "," + r2
+    );
+    console.log(r3);
+}
+run(foo);
+
+function bar(url1,url2){
+    return Promise.all([
+        request(url1),
+        request(url2)
+    ]);
+}
+
+function *foo(){
+    var results = yield bar(
+        "http://some.url.1",
+        "http://some.url.2"
+    );
+    var r1 = results[0];
+    var r2 = results[1];
+    var r3 =yield request(
+        "http://some.url.3/?v=" + r1 + "," + r2
+    );
+    console.log(r3);
+}
+run(foo);
+*/
+
+/*
+function *foo(){
+    var r2 = yield request( "http://some.url.2" );
+    var r3 = yield request( "http://some.url.3/?v=" + r2 );
+    return r3;
+}
+
+function *bar(){
+    var r1 = yield request("http://some.url.1" );
+    var r3 = yield run(foo);
+    console.log(r3);
+}
+run(bar);
+
+function *foo(){
+    console.log("foo() starting");
+    yield 3;
+    yield 4;
+    console.log("*foo() finished");
+}
+function *bar(){
+    yield 1;
+    yield 2;
+    yield *foo();// yield委托!
+    yield 5;
+}
+var it = bar();
+it.next().value;//1
+it.next().value;//2
+it.next().value;//*foo()
+                //3
+it.next().value; //4
+it.next().value; // *foo()完成 
+                 //5
+
+function *foo() {
+    var r2 = yield request( "http://some.url.2" );
+    var r3 = yield request( "http://some.url.3/?v=" + r2 );
+    return r3; 
+}
+
+function *bar(){
+    var r1 = yield request("http://some.url.1");
+    // 通过 yeild* "委托"给*foo()
+    var r3 = yield *foo();
+    console.log(r3);
+}
+run(bar);
+*/
+/*
+function *foo(){
+    console.log("inside *foo():",yield "B");
+    console.log("inside *foo():",yield "C");
+    return "D";
+}
+function *bar(){
+    console.log( "inside *bar():", yield "A" );
+    console.log("inside *bar():",yield *foo());
+    console.log( "inside *bar():", yield "E" );
+    return "F";
+}
+var it = bar();
+console.log( "outside:", it.next().value );
+// outside: A
+console.log( "outside:", it.next( 1 ).value );
+// inside *bar(): 1
+// outside: B
+console.log( "outside:", it.next( 2 ).value );
+     // inside *foo(): 2
+     // outside: C
+console.log( "outside:", it.next( 3 ).value );
+     // inside *foo(): 3
+     // inside *bar(): D
+     // outside: E
+console.log( "outside:", it.next( 4 ).value );
+     // inside *bar(): 4
+     // outside: F
+
+
+function *bar() {
+    console.log( "inside *bar():", yield "A" );
+    // yield委托给非生成器!
+    console.log( "inside *bar():", yield *[ "B", "C", "D" ] );
+    console.log( "inside *bar():", yield "E" );
+    return "F"; 
+    }
+    var it = bar();
+     console.log( "outside:", it.next().value );
+     // outside: A
+     console.log( "outside:", it.next( 1 ).value );
+     // inside *bar(): 1
+     // outside: B
+     console.log( "outside:", it.next( 2 ).value );
+     // outside: C
+     console.log( "outside:", it.next( 3 ).value );
+     // outside: D
+     console.log( "outside:", it.next( 4 ).value );
+     // inside *bar(): undefined
+     // outside: E
+     console.log( "outside:", it.next( 5 ).value );
+     // inside *bar(): 5
+     // outside: F
+     //最显著的是，默认的数组迭代器并不关心通过 next(..) 调用发送的任何消息，所以值 2、 3 和 4 根本就被忽略了。还有，因为迭代器没有显式的返回值(和前面使用的 *foo() 不 同)，所以 yield * 表达式完成后得到的是一个 undefined。
+function *foo(){
+         try{
+             yield "B";
+         }
+         catch(err){
+             console.log("error caught inside *foo():", err);
+         }
+         yield "C";
+         throw "D";
+     }
+function *bar(){
+    yield "A";
+    try{
+        yield *foo();
+    }
+    catch(err){
+        console.log("error caught inside *bar():",err);
+    }
+    yield "E";
+    yield *baz();
+    // 注:不会到达这里!
+    yield "G";
+}
+function *baz(){
+    throw "F";
+}
+var it = bar();
+
+console.log( "outside:", it.next().value );
+     // outside: A
+     console.log( "outside:", it.next( 1 ).value );
+     // outside: B
+     console.log( "outside:", it.throw( 2 ).value );
+     // error caught inside *foo(): 2
+     // outside: C
+     console.log( "outside:", it.next( 3 ).value );
+     // error caught inside *bar(): D
+     // outside: E
+     try {
+         console.log( "outside:", it.next( 4 ).value );
+     }
+     catch (err) {
+         console.log( "error caught outside:", err );
+     }
+     // error caught outside: F
+//然后，从 *baz() throw 出来的异常并没有在 *bar() 内被捕获——所以 *baz() 和 *bar() 都被设置为完成状态。这段代码之后，就再也无法通过任何后续的 next(..) 调用得到 值 "G"，next(..) 调用只会给 value 返回 undefined。
+
+function *foo(){
+    var r2 = yield request( "http://some.url.2" );
+    var r3 = yield request( "http://some.url.3/?v=" + r2 );
+    return r3;
+}
+function *bar(){
+    var r1 = yield request( "http://some.url.1" );
+    var r3 = yield *foo();
+    console.log(r3); 
+}
+run(bar);
+
+function *foo(val){
+    if(val>1){
+        val = yield *foo(val -1);
+    }
+    return yield request("http://some.url/?v=" + val);
+}
+
+function *bar(){
+    var r1 = yield *foo(3);
+    console.log(r1);
+}
+run(bar);
+*/
+function response(data) {
+    if (data.url == "http://some.url.1") {
+        res[0] = data;
+    }
+    else if (data.url == "http://some.url.2") {
+        res[1] = data;
+} }
+
+// request(..)是一个支持Promise的Ajax工具
+var res = [];
+     function *reqData(url) {
+         res.push(
+             yield request( url )
+         );
+}
+
+var it1 = reqData( "http://some.url.1" );
+var it2 = reqData( "http://some.url.2" );
+var p1 = it1.next();
+var p2 = it2.next();
+p1
+   .then( function(data){
+         it1.next( data );
+         return p2;
+        })
+        .then( function(data){
+                 it2.next( data );
+             } );
+    
+
+// request(..)是一个支持Promise的Ajax工具
+var res = [];
+function *reqData(url){
+    var data = yield request(url);
+// 控制转移
+    yield;
+    res.push(data);
+}
+var it1 = reqData( "http://some.url.1" );
+var it2 = reqData( "http://some.url.2" );
+var p1 = it.next();
+var p2 = it.next();
+
+p1.then(function(data){
+    it1.next(data);
+});
+p2.then(function(data){
+    it2.next(data);
+});
+Promise.all([p1,p2])
+.then(function(){
+    it1.next();
+    it2.next();
+});
+
+//// request(..)是一个支持Promise的Ajax工具
+var res = [];
+runAll(
+    function *(){
+        var p1 = request("http://some.url.1");
+        // 控制转移
+        yield;
+        res.push(yield p1);
+    },
+    function *(){
+        var p2 = request( "http://some.url.2" );
+        // 控制转移 
+        yield;
+        res.push( yield p2 );
+    }
+);
+
+//// request(..)是一个支持Promise的Ajax工具
+
+runAll(
+    function *(data){
+        data.res = [];
+        // 控制转移(以及消息传递)
+        var url1 = yield "http://some.url.2";
+        var p1 = request( url1 ); // "http://some.url.1"
+        // 控制转移
+        yield;
+        data.res.push(yield p1);
+    },
+    function *(data){
+        // 控制转移(以及消息传递)
+        var url2 = yield "http://some.url.1";
+        var p2 = request( url2 ); // "http://some.url.2"
+        // 控制转移 
+        yield;
+        data.res.push( yield p2 );
+    }
+);
+//实际上两个生成器不只是协调控制转移，还彼此通信，通过 data.res 和yield 的消息来交换 url1 和 url2 的值。
+
+//JavaScript 中的 thunk 是指一个用于调用另外一个函数的函数，没有任何参数形实
+//转换程序(thunk)。
+function foo(x,y) {
+    return x + y;
+}
+function fooThunk() {
+    return foo( 3, 4 );
+}
+// 将来
+console.log( fooThunk() ); // 7
+
+function foo(x,y,cb){
+    setTimeout(function(){
+        cb(x+y);
+    },1000);
+}
+function fooThunk(cb){
+    foo(3,4,cb);
+}
+fooThunk(function(sum){
+    console.log(sum);//7
+})
+
+function thunkify(fn){
+    var args = [].slice.call(arguments,1);
+    return function(cb){
+        args.push(cb);
+        return fn.apply(null,args);
+    };
+}
+//这里我们假定原始(foo(..))函数原型需要的回调放在最后的位置，其他 参数都在它之前。
+var fooThunk = thunkify( foo, 3, 4 );
+// 将来
+fooThunk( function(sum) {
+         console.log( sum );      // 7
+ } );
+
+ function thunkify(fn) {
+    return function() {
+        var args = [].slice.call( arguments );
+        return function(cb) {
+            args.push( cb );
+            return fn.apply( null, args );
+        };
+}; }
+var whatIsThis = thunkify( foo );
+var fooThunk = whatIsThis( 3, 4 );
+// 将来
+fooThunk( function(sum) {
+    console.log( sum );      // 7
+} );
+//whatIsThis 调用的是什么。并不是这个 thunk，而 是某个从 foo(..) 调用产生 thunk 的东西
+//thunkify(..) 生成一个 thunkory， 然后 thunkory 生成 thunk
+var fooThunkory = thunkify( foo );
+     var fooThunk1 = fooThunkory( 3, 4 );
+     var fooThunk2 = fooThunkory( 5, 6 );
+// 将来
+fooThunk1( function(sum) {
+    console.log( sum );//7
+} );
+fooThunk2( function(sum) {
+    console.log( sum );//11
+} );
+
+// request(..)是一个支持Promise的Ajax工具
+function *foo(url) {
+    try {
+        console.log( "requesting:", url );
+        var val = yield request( url );
+        console.log( val );
+    }
+    catch (err) {
+        console.log( "Oops:", err );
+        return false;
+    }
+}
+var it = foo( "http://some.url.1" );
+
+function foo(url) {
+    // ..
+// 构造并返回一个迭代器 
+return {
+        next: function(v) {
+            // ..
+        },
+        throw: function(e) {
+// .. 
+}
+}; }
+var it = foo( "http://some.url.1" );
+
+// request(..)是一个支持Promise的Ajax工具 
+function *foo(url) {
+// 状态1
+try {
+    console.log( "requesting:", url );
+    var TMP1 = request( url );
+// 状态2
+var val = yield TMP1; 
+console.log( val );
+}
+catch (err) {
+// 状态3
+console.log( "Oops:", err ); 
+return false;
+} }
+
+function foo(url) { 
+    // 管理生成器状态 
+    var state;
+    // .. 
+}
+
+// request(..)是一个支持Promise的Ajax工具
+function foo(url) { 
+    // 管理生成器状态
+    var state;
+// 生成器范围变量声明 var val;
+function process(v) {
+    switch (state) {
+        case 1:
+            console.log( "requesting:", url );
+            return request( url );
+        case 2:
+            val = v;
+            console.log( val );
+            return;
+        case 3:
+                var err = v;
+                console.log( "Oops:", err );
+                return false;
+} 
+}
+// .. 
+}
+
+//yield/next(..)这一对不只是一种控制机制，实际上也是一种双向消息传递机制。yield ..表 达式本质上是暂停下来等待某个值，接下来的 next(..) 调用会向被暂停的 yield 表达式传回 一个值(或者是隐式的 undefined)。
+//生成器为异步代码保持了顺序、同步、阻塞的代码模式，这使得大脑可以更自 然地追踪代码
